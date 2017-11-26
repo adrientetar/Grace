@@ -37,6 +37,7 @@ public:
     void OnOpen(wxCommandEvent& WXUNUSED(event));
     void OnSave(wxCommandEvent& WXUNUSED(event));
     void OnSaveAs(wxCommandEvent& WXUNUSED(event));
+    void OnStatusChanged(wxCommandEvent& event);
     void OnExit(wxCommandEvent& WXUNUSED(event));
     void OnAbout(wxCommandEvent& WXUNUSED(event));
     bool QueryCanDiscard();
@@ -100,13 +101,21 @@ MainFrame::MainFrame(const wxString& title)
 
     Bind(wxEVT_CLOSE_WINDOW, &MainFrame::OnClose, this);
 
+    CreateStatusBar();
+
     editor_->SetFocus();
 
     editor_->Bind(wxEVT_STC_SAVEPOINTLEFT, [=](wxCommandEvent&) { UpdateTitle(); });
     editor_->Bind(wxEVT_STC_SAVEPOINTREACHED, [=](wxCommandEvent&) { UpdateTitle(); });
+    Bind(STC_STATUS_CHANGED, &MainFrame::OnStatusChanged, this);
 
     UpdateTitle();
     Centre();
+}
+
+void MainFrame::OnStatusChanged(wxCommandEvent& event)
+{
+    SetStatusText(event.GetString());
 }
 
 bool MainFrame::DoSave(bool forceSaveAs/* = false */)

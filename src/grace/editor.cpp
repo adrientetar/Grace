@@ -6,6 +6,7 @@
 
 #include "editor.h"
 #include "gproc/lexer.h"
+#include "gproc/parser.h"
 
 #define LEX_COMMENT       9
 #define LEX_NUMOP_1      10  // G M
@@ -16,6 +17,11 @@
 #define LEX_NUMOP_6      14  // I J
 
 #define STC_FOLDMARGIN    2
+
+#define USE_LEXER         1
+#define USE_PARSER        0
+
+wxDEFINE_EVENT(STC_STATUS_CHANGED, wxCommandEvent);
 
 
 Editor::Editor(wxWindow* parent)
@@ -55,6 +61,7 @@ Editor::Editor(wxWindow* parent)
 
     SetMarginSensitive(STC_FOLDMARGIN, true);
     Bind(wxEVT_STC_MARGINCLICK, &Editor::OnMarginClick, this);
+    Bind(wxEVT_STC_MODIFIED, &Editor::OnModified, this);
     Bind(wxEVT_STC_STYLENEEDED, &Editor::OnStyleNeeded, this);
 
     SetScrollWidth(1);
@@ -84,6 +91,7 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
     StartStyling(fromPos);
     SetStyling(toPos - fromPos, 0);
 
+#if USE_LEXER
     Lexer lexer(text.ToStdWstring());
     int numop;
     unsigned start, length;
@@ -150,6 +158,7 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
             SetStyling(length, LEX_COMMENT);
         }
     }
+#endif
 }
 
 void Editor::OnMarginClick(wxStyledTextEvent& event) {
@@ -162,6 +171,26 @@ void Editor::OnMarginClick(wxStyledTextEvent& event) {
     if (margin == STC_FOLDMARGIN && headerFlag) {
         ToggleFold(line);
     }
+}
+
+void Editor::OnModified(wxStyledTextEvent& event) {
+#if USE_PARSER
+    wxCommandEvent event_(STC_STATUS_CHANGED);
+    try {
+        /* we need to keep this ref alive for the duration of the scope */
+        auto text = GetText();
+        Parser parser(text.ToStdWstring());
+        parser.parse();
+        event_.SetString("");
+    }
+    catch (ParserException e)
+    {
+        auto line = LineFromPosition(e.position());
+        auto column = e.position() - PositionFromLine(line);
+        event_.SetString(std::to_string(line+1) + ":" + std::to_string(column) + ": " + e.what());
+    }
+    wxPostEvent(GetParent(), event_);
+#endif
 }
 
 void Editor::OnStyleNeeded(wxStyledTextEvent& event) {
