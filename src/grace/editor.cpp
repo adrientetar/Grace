@@ -11,7 +11,7 @@
 #define LEX_NUMOP_1      10  // G M
 #define LEX_NUMOP_2      11  // X Y Z
 #define LEX_NUMOP_3      12  // T R H P
-#define LEX_NUMOP_4      13  // F S
+#define LEX_NUMOP_4      13  // E F S
 #define LEX_NUMOP_5      15  // N O
 #define LEX_NUMOP_6      14  // I J
 
@@ -54,8 +54,8 @@ Editor::Editor(wxWindow* parent)
     MarkerEnableHighlight(true);
 
     SetMarginSensitive(STC_FOLDMARGIN, true);
-    Bind(wxEVT_STC_MARGINCLICK, &OnMarginClick, this);
-    Bind(wxEVT_STC_STYLENEEDED, &OnStyleNeeded, this);
+    Bind(wxEVT_STC_MARGINCLICK, &Editor::OnMarginClick, this);
+    Bind(wxEVT_STC_STYLENEEDED, &Editor::OnStyleNeeded, this);
 
     SetScrollWidth(1);
     SetScrollWidthTracking(true);
@@ -116,7 +116,8 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
         {
             numop = LEX_NUMOP_3;
         }
-        else if (t.type == TokenType_::F ||
+        else if (t.type == TokenType_::E ||
+                 t.type == TokenType_::F ||
                  t.type == TokenType_::S)
         {
             numop = LEX_NUMOP_4;
@@ -156,12 +157,12 @@ void Editor::OnMarginClick(wxStyledTextEvent& event) {
     int line = LineFromPosition(event.GetPosition());
 
     int foldLevel = GetFoldLevel(line);
-    bool headerFlag = (foldLevel & wxSTC_FOLDLEVELHEADERFLAG)!=0;
+    bool headerFlag = (foldLevel & wxSTC_FOLDLEVELHEADERFLAG) != 0;
 
     if (margin == STC_FOLDMARGIN && headerFlag) {
         ToggleFold(line);
     }
- }
+}
 
 void Editor::OnStyleNeeded(wxStyledTextEvent& event) {
     // restyle the whole modified line otherwise we'll be lacking context

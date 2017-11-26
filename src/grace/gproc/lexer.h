@@ -30,7 +30,7 @@ enum class TokenType_ {
 
     Number,
 
-    Minus,
+    //Minus,
     Percent,
 
     Comment,
@@ -48,7 +48,7 @@ struct Token {
     TokenType_ type;
 };
 
-inline const char* TokenType_ToString(TokenType_ tt)
+inline std::string TokenType_ToString(TokenType_ tt)
 {
     switch (tt)
     {
@@ -72,12 +72,12 @@ inline const char* TokenType_ToString(TokenType_ tt)
 
         case TokenType_::Number:   return "Number";
 
-        case TokenType_::Minus:   return "Minus";
+        //case TokenType_::Minus:   return "Minus";
         case TokenType_::Percent:   return "Percent";
         case TokenType_::Comment:   return "Comment";
         case TokenType_::EndOfFile:   return "EndOfFile";
         case TokenType_::Unknown:   return "Unknown";
-        default:      return "";
+        default:      return "<invalid>";
     }
 }
 

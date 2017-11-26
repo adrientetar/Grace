@@ -156,6 +156,7 @@ Token Lexer::tokenize_comment_(bool untilEol/* = false*/)
 
 Token Lexer::tokenize_number_()
 {
+    //auto kind = TokenType_::Integer;
     unsigned start = pos_ - 1;
 
     scan_integer_();
@@ -164,6 +165,7 @@ Token Lexer::tokenize_number_()
         if (pos_ < text_length_ && iswdigit(text_[pos_])) {
             scan_integer_();
         }
+        //kind = TokenType_::Decimal;
     }
 
     return Token {
