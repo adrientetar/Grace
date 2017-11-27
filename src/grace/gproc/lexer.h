@@ -30,19 +30,14 @@ enum class TokenType_ {
 
     Number,
 
-    //Minus,
-    Percent,
-
     Comment,
+    Percent,
 
     EndOfFile,
     Unknown
 };
 
 struct Token {
-    //bool operator == (const Token& v) const;
-    //bool operator != (const Token& v) const;
-    //std::ostream& operator<< (std::ostream& stream, const Token& t);
     unsigned start;
     unsigned length;
     TokenType_ type;
@@ -72,12 +67,13 @@ inline std::string TokenType_ToString(TokenType_ tt)
 
         case TokenType_::Number:   return "Number";
 
-        //case TokenType_::Minus:   return "Minus";
         case TokenType_::Percent:   return "Percent";
         case TokenType_::Comment:   return "Comment";
+
         case TokenType_::EndOfFile:   return "EndOfFile";
         case TokenType_::Unknown:   return "Unknown";
-        default:      return "<invalid>";
+
+        default:   return "<invalid>";
     }
 }
 
@@ -90,7 +86,6 @@ class Lexer {
 public:
     Lexer(const std::wstring& text);
     Token next();
-    Token peek();
 
 private:
     void scan_integer_();

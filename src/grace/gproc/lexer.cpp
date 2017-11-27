@@ -6,11 +6,6 @@
 
 #include "lexer.h"
 
-// TODO: generalize the parser to work with a std::istream
-// instead of string?
-//
-// std::wstringstream stream(L"foo");
-// std::istream_iterator<std::wstring, wchar_t> it(stream);
 Lexer::Lexer(const std::wstring& text)
     : text_(text)
 {
@@ -55,14 +50,6 @@ Token Lexer::next()
             //    TokenType::Percent,
             //}
         }
-        //else if (c == '-')
-        //{
-        //    return Token {
-        //        pos_ - 1,
-        //        1,
-        //        TokenType_::Minus,
-        //    };
-        //}
         else
         {
             return Token {
@@ -78,14 +65,6 @@ Token Lexer::next()
         0,
         TokenType_::EndOfFile,
     };
-}
-
-Token Lexer::peek()
-{
-    unsigned pos = pos_;
-    Token t = next();
-    pos_ = pos;
-    return t;
 }
 
 void Lexer::scan_integer_()

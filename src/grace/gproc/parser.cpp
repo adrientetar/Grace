@@ -23,11 +23,6 @@ void Args::set(TokenType_ kind, float value)
     }
 }
 
-// TODO: generalize the parser to work with a std::istream
-// instead of string?
-//
-// std::wstringstream stream(L"foo");
-// std::istream_iterator<std::wstring, wchar_t> it(stream);
 Parser::Parser(const std::wstring& text)
     : lexer_(new Lexer(text)), text_(text)
 {
@@ -77,18 +72,9 @@ void Parser::advance_lexer_()
     do {
         cur_token_ = next_token_;
         next_token_ = lexer_->next();
-
-        // actually maybe we shouldn't throw on unknown here so that we get better
-        // error checks "expected xxx"
-        //if (cur_token_.type == TokenType_::Unknown)
-        //{
-        //    throw ParserException(
-        //        std::string("Unknown token"),
-        //        cur_token_.start, cur_token_.length);
-        //}
-    } while (cur_token_.type != TokenType_::EndOfFile &&
-             (cur_token_.type == TokenType_::Comment ||
-              cur_token_.type == TokenType_::Percent)); // we should handle comments here for round tripping
+    }
+    // TODO: handle and store comments
+    while (cur_token_.type == TokenType_::Comment);
 }
 
 Args Parser::fetch_args_()
