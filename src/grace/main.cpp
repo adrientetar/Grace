@@ -127,18 +127,20 @@ bool MainFrame::DoSave(bool forceSaveAs/* = false */)
         return true;
     }
 
-    wxFileDialog dialog(
+    auto dialog = new wxFileDialog(
         this, _T("Save As"), wxEmptyString, wxEmptyString,
         _("G-code files (*.gcode)|*.gcode;*.txt|All files (*.*)|*"),
         wxFD_SAVE | wxFD_OVERWRITE_PROMPT, wxDefaultPosition);
 
-    if (dialog.ShowModal() == wxID_OK)
+    bool ret = false;
+    if (dialog->ShowModal() == wxID_OK)
     {
-        editor_->SaveFile(dialog.GetPath());
-        path_.set(this, dialog.GetPath());
-        return true;
+        editor_->SaveFile(dialog->GetPath());
+        path_.set(this, dialog->GetPath());
+        ret = true;
     }
-    return false;
+    dialog->Destroy();
+    return ret;
 }
 
 void MainFrame::OnClose(wxCloseEvent& event)
@@ -163,16 +165,17 @@ void MainFrame::OnOpen(wxCommandEvent& WXUNUSED(event))
 {
     if (!QueryCanDiscard()) return;
 
-    wxFileDialog dialog(
+    auto dialog = new wxFileDialog(
         this, _T("Open"), wxEmptyString, wxEmptyString,
         _("G-code files (*.gcode)|*.gcode;*.txt|All files (*.*)|*"),
         wxFD_OPEN, wxDefaultPosition);
 
-    if (dialog.ShowModal() == wxID_OK)
+    if (dialog->ShowModal() == wxID_OK)
     {
-        editor_->LoadFile(dialog.GetPath());
-        path_.set(this, dialog.GetPath());
+        editor_->LoadFile(dialog->GetPath());
+        path_.set(this, dialog->GetPath());
     }
+    dialog->Destroy();
 }
 
 void MainFrame::OnSave(wxCommandEvent& WXUNUSED(event))
@@ -216,20 +219,26 @@ bool MainFrame::QueryCanDiscard()
         return true;
     }
 
-    wxMessageDialog dialog(this, _T("Do you want to save your changes?"), wxEmptyString, wxYES_NO|wxCENTRE|wxCANCEL);
-    dialog.SetTitle(wxGetApp().GetAppDisplayName());
-    dialog.SetYesNoLabels(wxID_SAVE, _("&Don't save"));
+    auto dialog = new wxMessageDialog(this, _T("Do you want to save your changes?"), wxEmptyString, wxYES_NO|wxCENTRE|wxCANCEL);
+    dialog->SetTitle(wxGetApp().GetAppDisplayName());
+    dialog->SetYesNoLabels(wxID_SAVE, _("&Don't save"));
 
-    auto ret = dialog.ShowModal();
-    if (ret == wxID_YES)
+    bool ret;
+    auto dret = dialog->ShowModal();
+    if (dret == wxID_YES)
     {
-        return DoSave();
+        ret = DoSave();
     }
-    else if (ret == wxID_NO)
+    else if (dret == wxID_NO)
     {
-        return true;
+        ret = true;
     }
-    return false;
+    else
+    {
+        ret = false;
+    }
+    dialog->Destroy();
+    return ret;
 }
 
 void MainFrame::UpdateTitle()
