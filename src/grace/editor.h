@@ -20,4 +20,6 @@ private:
     void OnMarginClick(wxStyledTextEvent& event);
     void OnModified(wxStyledTextEvent& event);
     void OnStyleNeeded(wxStyledTextEvent& event);
+
+    bool modified_;
 };

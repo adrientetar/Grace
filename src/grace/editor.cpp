@@ -25,7 +25,7 @@ wxDEFINE_EVENT(STC_STATUS_CHANGED, wxCommandEvent);
 
 
 Editor::Editor(wxWindow* parent)
-        : wxStyledTextCtrl(parent)
+        : wxStyledTextCtrl(parent), modified_(false)
 {
     SetLexer(wxSTC_LEX_CONTAINER);
 
@@ -159,6 +159,27 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
         }
     }
 #endif
+
+#if USE_PARSER
+    if (!modified_) return;
+
+    wxCommandEvent event(STC_STATUS_CHANGED);
+    try {
+        /* we need to keep this ref alive for the duration of the scope */
+        auto text = GetText();
+        Parser parser(text.ToStdWstring());
+        parser.parse();
+        event.SetString("Compiles fine");
+    }
+    catch (ParserException e)
+    {
+        auto line = LineFromPosition(e.position());
+        auto column = e.position() - PositionFromLine(line);
+        event.SetString(std::to_string(line+1) + ":" + std::to_string(column) + ": " + e.what());
+    }
+    wxPostEvent(GetParent(), event);
+    modified_ = false;
+#endif
 }
 
 void Editor::OnMarginClick(wxStyledTextEvent& event) {
@@ -174,23 +195,12 @@ void Editor::OnMarginClick(wxStyledTextEvent& event) {
 }
 
 void Editor::OnModified(wxStyledTextEvent& event) {
-#if USE_PARSER
-    wxCommandEvent event_(STC_STATUS_CHANGED);
-    try {
-        /* we need to keep this ref alive for the duration of the scope */
-        auto text = GetText();
-        Parser parser(text.ToStdWstring());
-        parser.parse();
-        event_.SetString("");
-    }
-    catch (ParserException e)
+    int type = event.GetModificationType();
+    if (type & (wxSTC_MOD_INSERTTEXT || wxSTC_MOD_DELETETEXT ||
+                wxSTC_PERFORMED_UNDO || wxSTC_PERFORMED_REDO))
     {
-        auto line = LineFromPosition(e.position());
-        auto column = e.position() - PositionFromLine(line);
-        event_.SetString(std::to_string(line+1) + ":" + std::to_string(column) + ": " + e.what());
+        modified_ = true;
     }
-    wxPostEvent(GetParent(), event_);
-#endif
 }
 
 void Editor::OnStyleNeeded(wxStyledTextEvent& event) {
