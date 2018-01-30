@@ -4,25 +4,6 @@
 
 #include "parser.h"
 
-void Args::set(TokenType_ kind, float value)
-{
-    switch (kind)
-    {
-    case TokenType_::X: x = value; break;
-    case TokenType_::Y: y = value; break;
-    case TokenType_::Z: z = value; break;
-    case TokenType_::S: s = value; break;
-    case TokenType_::F: f = value; break;
-    case TokenType_::I: i = value; break;
-    case TokenType_::J: j = value; break;
-    case TokenType_::H: h = value; break;
-    case TokenType_::P: p = value; break;
-    case TokenType_::E: e = value; break;
-
-    default: /* unreachable */;
-    }
-}
-
 Parser::Parser(const std::wstring& text)
     : lexer_(new Lexer(text)), text_(text)
 {
@@ -35,36 +16,154 @@ Parser::~Parser()
     delete lexer_;
 }
 
-std::vector<Line> Parser::parse()
+Program Parser::parse()
 {
-    std::vector<Line> commands;
+    Program program;
+    advance_lexer_();
+    advance_lexer_();
 
-    advance_lexer_();
-    advance_lexer_();
-    while (next_token_.type != TokenType_::EndOfFile)
+    program.header = fetch_header_();
+    while (next_token_.type != Token::EndOfFile)
     {
-        // A line of G-code is either:
-        // a program number (O)
-        if (cur_token_.type == TokenType_::O)
-        {
-            commands.emplace_back(fetch_unsigned_());
-            continue;
-        }
-        // or:
-        // a line number? (N)
-        std::optional<unsigned> lineNumber = std::nullopt;
-        if (cur_token_.type == TokenType_::N)
-        {
-            lineNumber = fetch_unsigned_();
-        }
-        // command (word)
-        auto cmd = fetch_command_();
-        // args (word+)
-        auto args = fetch_args_();
-        // TODO: give Command a ctor and we can emplace_back for sign
-        commands.emplace_back(Command { cmd, args, lineNumber });
+        program.blocks.emplace_back(fetch_block_());
     }
-    return commands;
+
+    return program;
+}
+
+Header Parser::fetch_header_()
+{
+    Header header;
+
+    if (cur_token_.type != Token::Percent)
+    {
+        throw ParserException(
+            std::string("Expected % starting header, not") + TokenType_ToString(cur_token_.type),
+            cur_token_.start, cur_token_.length);
+    }
+    if (next_token_.type == Token::Comment)
+    {
+        header.identifier = fetch_comment_();
+    }
+    else if (next_token_.type == Token::Number)
+    {
+        header.identifier = fetch_unsigned_();
+    }
+    else
+    {
+        advance_lexer_();
+    }
+
+    if (!(cur_token_.type == Token::EndOfBlock ||
+          cur_token_.type == Token::EndOfFile))
+    {
+        throw ParserException(
+            std::string("Expected <newline> ending header, not") + TokenType_ToString(cur_token_.type),
+            cur_token_.start, cur_token_.length);
+    }
+    advance_lexer_();
+    return header;
+}
+
+Block Parser::fetch_block_()
+{
+    Block block;
+    TokenSet rec_types;
+    WordSet rec_words;
+
+    if (cur_token_.type == Token::N)
+    {
+        block.number = BlockNumber(fetch_unsigned_());
+    }
+    // prep words
+    while (cur_token_.type == Token::G)
+    {
+        add_word_no_dupl_(block.data_words, rec_words);
+    }
+    auto hasDimension = false;
+    // dimension words
+    while (cur_token_.type == Token::X ||
+           cur_token_.type == Token::Y ||
+           cur_token_.type == Token::Z ||
+           cur_token_.type == Token::U ||
+           cur_token_.type == Token::V ||
+           cur_token_.type == Token::W ||
+           cur_token_.type == Token::P ||
+           cur_token_.type == Token::Q ||
+           cur_token_.type == Token::R ||
+           cur_token_.type == Token::A ||
+           cur_token_.type == Token::B ||
+           cur_token_.type == Token::C)
+    {
+        add_word_no_type_dupl_(block.data_words, rec_types);
+        hasDimension = true;
+    }
+    if (hasDimension)
+    {
+        // interpolation words
+        while (cur_token_.type == Token::I ||
+               cur_token_.type == Token::J ||
+               cur_token_.type == Token::K)
+        {
+            add_word_no_type_dupl_(block.data_words, rec_types);
+        }
+        // advance words
+        while (cur_token_.type == Token::E ||
+               cur_token_.type == Token::F)
+        {
+            add_word_no_type_dupl_(block.data_words, rec_types);
+        }
+    }
+    // spin word
+    if (cur_token_.type == Token::S)
+    {
+        block.data_words.emplace_back(fetch_word_());
+    }
+    // tool words
+    while (cur_token_.type == Token::D ||
+           cur_token_.type == Token::T)
+    {
+        add_word_no_type_dupl_(block.data_words, rec_types);
+    }
+    // aux words
+    while (cur_token_.type == Token::M)
+    {
+        add_word_no_dupl_(block.data_words, rec_words);
+    }
+
+    if (!(cur_token_.type == Token::EndOfBlock ||
+          cur_token_.type == Token::EndOfFile))
+    {
+        throw ParserException(
+            std::string("Expected <newline> ending block, not ") + TokenType_ToString(cur_token_.type),
+            cur_token_.start, cur_token_.length);
+    }
+    advance_lexer_();
+    return block;
+}
+
+void Parser::add_word_no_dupl_(std::vector<Word>& words, WordSet& rec_words)
+{
+    auto start = cur_token_.start;
+    auto word = fetch_word_();
+    if (!rec_words.emplace(word).second)
+    {
+        throw ParserException(
+            std::string("Illegal duplicate ") + Word_ToString(word) + " within block",
+            start, cur_token_.start - start);
+    }
+    words.emplace_back(word);
+}
+
+void Parser::add_word_no_type_dupl_(std::vector<Word>& words, TokenSet& rec_types)
+{
+    if (!rec_types.emplace(cur_token_.type).second)
+    {
+        throw ParserException(
+            std::string("Cannot specify ") + TokenType_ToString(cur_token_.type) + " twice within a block",
+            cur_token_.start, cur_token_.length);
+    }
+    words.emplace_back(fetch_word_());
 }
 
 void Parser::advance_lexer_()
@@ -74,58 +173,12 @@ void Parser::advance_lexer_()
         next_token_ = lexer_->next();
     }
     // TODO: handle and store comments
-    while (cur_token_.type == TokenType_::Comment);
-}
-
-Args Parser::fetch_args_()
-{
-    Args args;
-    std::optional<Word> arg;
-    while ((arg = fetch_argument_()) != std::nullopt)
-    {
-        args.set(arg->kind, arg->value);
-    }
-
-    return args;
-}
-
-std::optional<Word> Parser::fetch_argument_(bool optional/* = true*/)
-{
-    if (!(cur_token_.type == TokenType_::X ||
-          cur_token_.type == TokenType_::Y ||
-          cur_token_.type == TokenType_::Z ||
-          cur_token_.type == TokenType_::S ||
-          cur_token_.type == TokenType_::F ||
-          cur_token_.type == TokenType_::I ||
-          cur_token_.type == TokenType_::J ||
-          cur_token_.type == TokenType_::H ||
-          cur_token_.type == TokenType_::P ||
-          cur_token_.type == TokenType_::E))
-    {
-        if (optional) return {};
-        throw ParserException(
-            std::string("Expected argument (X Y Z S F I J H P E), not ") + TokenType_ToString(cur_token_.type),
-            cur_token_.start, cur_token_.length);
-    };
-    return get_word_();
-}
-
-Word Parser::fetch_command_()
-{
-    if (!(cur_token_.type == TokenType_::G ||
-          cur_token_.type == TokenType_::M ||
-          cur_token_.type == TokenType_::T))
-    {
-        throw ParserException(
-            std::string("Expected command (G M T), not ") + TokenType_ToString(cur_token_.type),
-            cur_token_.start, cur_token_.length);
-    };
-    return get_word_();
+    while (cur_token_.type == Token::Comment);
 }
 
 unsigned Parser::fetch_unsigned_()
 {
-    if (next_token_.type == TokenType_::Number)
+    if (next_token_.type == Token::Number)
     {
         try {
             auto ret = (unsigned) std::stoi(text_.substr(
@@ -141,9 +194,27 @@ unsigned Parser::fetch_unsigned_()
         next_token_.start, next_token_.length);
 }
 
-inline Word Parser::get_word_()
+std::wstring Parser::fetch_comment_()
 {
-    if (next_token_.type == TokenType_::Number)
+    if (next_token_.type == Token::Comment)
+    {
+        try {
+            auto ret = text_.substr(
+                next_token_.start, next_token_.length);
+            /* advance lexer afterward so we can have a unique exc path */
+            advance_lexer_(); advance_lexer_();
+            return ret;
+        }
+        catch (...) { /* fallthrough */ }
+    }
+    throw ParserException(
+        std::string("Expected <comment> after ") + TokenType_ToString(cur_token_.type),
+        next_token_.start, next_token_.length);
+}
+
+Word Parser::fetch_word_()
+{
+    if (next_token_.type == Token::Number)
     {
         auto kind = cur_token_.type;
         try
@@ -159,6 +230,6 @@ inline Word Parser::get_word_()
     }
 
     throw ParserException(
-        std::string("Expected <unsigned> after ") + TokenType_ToString(cur_token_.type),
+        std::string("Expected <number> after ") + TokenType_ToString(cur_token_.type),
         next_token_.start, next_token_.length);
 }

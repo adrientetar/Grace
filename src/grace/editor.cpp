@@ -8,18 +8,20 @@
 #include "gproc/lexer.h"
 #include "gproc/parser.h"
 
-#define LEX_COMMENT       9
-#define LEX_NUMOP_1      10  // G M
-#define LEX_NUMOP_2      11  // X Y Z
-#define LEX_NUMOP_3      12  // T R H P
-#define LEX_NUMOP_4      13  // E F S
-#define LEX_NUMOP_5      15  // N O
-#define LEX_NUMOP_6      14  // I J
+#define LEX_COMMENT       9  // ( ) - comments
+#define LEX_NUMOP_1      10  // G - g-words
+#define LEX_NUMOP_2      11  // X Y Z U V W P Q R A B C - dimension words
+#define LEX_NUMOP_3      12  // I J K - interpolation lead words
+#define LEX_NUMOP_4      13  // E F - feed rate
+#define LEX_NUMOP_5      14  // S - spindle speed
+#define LEX_NUMOP_6      15  // D T - tool function
+#define LEX_NUMOP_7      16  // M - misc function
+#define LEX_PNUMBER      17  // N - pgm. number
 
 #define STC_FOLDMARGIN    2
 
 #define USE_LEXER         1
-#define USE_PARSER        0
+#define USE_PARSER        1
 
 wxDEFINE_EVENT(STC_STATUS_CHANGED, wxCommandEvent);
 
@@ -70,10 +72,12 @@ Editor::Editor(wxWindow* parent)
     StyleSetForeground(LEX_COMMENT, wxColour(106, 115, 125));
     StyleSetForeground(LEX_NUMOP_1, wxColour(215, 58, 73));
     StyleSetForeground(LEX_NUMOP_2, wxColour(0, 132, 176));
-    StyleSetForeground(LEX_NUMOP_3, wxColour(227, 98, 9));
+    StyleSetForeground(LEX_NUMOP_3, wxColour(120, 91, 160));
     StyleSetForeground(LEX_NUMOP_4, wxColour(120, 91, 160));
     StyleSetForeground(LEX_NUMOP_5, wxColour(180, 189, 108));
-    StyleSetForeground(LEX_NUMOP_6, wxColour(120, 91, 160));
+    StyleSetForeground(LEX_NUMOP_6, wxColour(227, 98, 9));
+    StyleSetForeground(LEX_NUMOP_7, wxColour(215, 58, 73));
+    StyleSetForeground(LEX_PNUMBER, wxColour(227, 98, 9));
 
     StyleSetFaceName(wxSTC_STYLE_DEFAULT, "Consolas");
     StyleSetForeground(wxSTC_STYLE_DEFAULT, wxColour(35, 36, 38));
@@ -84,7 +88,7 @@ Editor::Editor(wxWindow* parent)
 }
 
 void Editor::DoSetFoldLevels(unsigned fromPos, int startLevel, wxString& text) {
-    // TODO
+    // TODO if multiple programs are allowed in a file we could fold acc. to %
 }
 
 void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
@@ -95,8 +99,8 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
     Lexer lexer(text.ToStdWstring());
     int numop;
     unsigned start, length;
-    for (Token t = lexer.next();
-         t.type != TokenType_::EndOfFile;
+    for (Token::Token t = lexer.next();
+         t.type != Token::EndOfFile;
          t = lexer.next())
     {
         //std::cout << t << std::flush;
@@ -106,45 +110,58 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
         length = t.length;
 
         numop = 0;
-        if (t.type == TokenType_::G ||
-            t.type == TokenType_::M)
+        if (t.type == Token::G)
         {
             numop = LEX_NUMOP_1;
         }
-        else if (t.type == TokenType_::X ||
-                 t.type == TokenType_::Y ||
-                 t.type == TokenType_::Z)
+        else if (t.type == Token::X ||
+                 t.type == Token::Y ||
+                 t.type == Token::Z ||
+                 t.type == Token::U ||
+                 t.type == Token::V ||
+                 t.type == Token::W ||
+                 t.type == Token::P ||
+                 t.type == Token::Q ||
+                 t.type == Token::R ||
+                 t.type == Token::A ||
+                 t.type == Token::B ||
+                 t.type == Token::C)
         {
             numop = LEX_NUMOP_2;
         }
-        else if (t.type == TokenType_::T ||
-                 t.type == TokenType_::R ||
-                 t.type == TokenType_::H ||
-                 t.type == TokenType_::P)
+        else if (t.type == Token::I ||
+                 t.type == Token::J ||
+                 t.type == Token::K)
         {
             numop = LEX_NUMOP_3;
         }
-        else if (t.type == TokenType_::E ||
-                 t.type == TokenType_::F ||
-                 t.type == TokenType_::S)
+        else if (t.type == Token::E ||
+                 t.type == Token::F)
         {
             numop = LEX_NUMOP_4;
         }
-        else if (t.type == TokenType_::N ||
-                 t.type == TokenType_::O)
+        else if (t.type == Token::S)
         {
             numop = LEX_NUMOP_5;
         }
-        else if (t.type == TokenType_::I ||
-                 t.type == TokenType_::J)
+        else if (t.type == Token::D ||
+                 t.type == Token::T)
         {
             numop = LEX_NUMOP_6;
+        }
+        else if (t.type == Token::M)
+        {
+            numop = LEX_NUMOP_7;
+        }
+        else if (t.type == Token::N)
+        {
+            numop = LEX_PNUMBER;
         }
 
         if (numop)
         {
             t = lexer.next();
-            if (t.type == TokenType_::Number)
+            if (t.type == Token::Number)
             {
                 length += t.length;
 
@@ -152,7 +169,7 @@ void Editor::DoSetStyling(unsigned fromPos, unsigned toPos, wxString &text) {
                 SetStyling(length, numop);
             }
         }
-        else if (t.type == TokenType_::Comment)
+        else if (t.type == Token::Comment)
         {
             StartStyling(fromPos + start);
             SetStyling(length, LEX_COMMENT);

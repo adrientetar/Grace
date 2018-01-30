@@ -14,18 +14,17 @@ Lexer::Lexer(const std::wstring& text)
     text_length_ = text.length();
 }
 
-// TODO: word boundary between matches? seems some gcode files omit spaces though
-
-Token Lexer::next()
+Token::Token Lexer::next()
 {
     wchar_t c;
     while(pos_ < text_length_)
     {
         c = text_[pos_];
         ++pos_;
-        if (iswspace(c)) continue;
 
-        if (c == '-' || iswdigit(c))
+        // comma is mentioned in the spec list, but unclear
+        // what it's for
+        if (c == '+' || c == '-' || c == '.' || iswdigit(c))
         {
             return tokenize_number_();
         }
@@ -33,37 +32,70 @@ Token Lexer::next()
         {
             return tokenize_alpha_();
         }
-        else if (c == ';')
-        {
-            return tokenize_comment_(true);
-        }
         else if (c == '(')
         {
             return tokenize_comment_();
         }
+        else if (c == '=')
+        {
+            return Token::Token {
+                pos_ - 1,
+                1,
+                Token::Equal,
+            };
+        }
         else if (c == '%')
         {
-            // ignore percent signs
-            continue;//return Token {
-            //    pos_ - 1,
-            //    1,
-            //    TokenType::Percent,
-            //}
+            return Token::Token {
+                pos_ - 1,
+                1,
+                Token::Percent,
+            };
+        }
+        else if (c == ':')
+        {
+            return Token::Token {
+                pos_ - 1,
+                1,
+                Token::AlignmentChar,
+            };
+        }
+        else if (c == '/')
+        {
+            return Token::Token {
+                pos_ - 1,
+                1,
+                Token::OptBlockSkip,
+            };
+        }
+        else if (c == '\u0009' || /* TAB */
+                 c == '\u000A' || /* LF/NL */
+                 c == '\u000D' || /* CR */
+                 c == '\u007F' || /* DEL */
+                 c == ' ')
+        {
+            // non-printing chars, only LF has semantics
+            if (c != '\u000A') continue;
+            return Token::Token {
+                pos_ - 1,
+                1,
+                Token::EndOfBlock,
+            };
         }
         else
         {
-            return Token {
+            return Token::Token {
                 pos_ - 1,
                 1,
-                TokenType_::Unknown,
+                Token::Unknown,
             };
         }
     }
 
-    return Token {
+    return Token::Token {
         pos_,
         0,
-        TokenType_::EndOfFile,
+        Token::EndOfFile,
     };
 }
 
@@ -80,76 +112,96 @@ void Lexer::scan_integer_()
     }
 }
 
-Token Lexer::tokenize_alpha_()
+Token::Token Lexer::tokenize_alpha_()
 {
-    TokenType_ kind;
+    Token::Type kind;
 
     switch (text_[pos_-1])
     {
-    case 'G': kind = TokenType_::G; break;
-    case 'M': kind = TokenType_::M; break;
-    case 'T': kind = TokenType_::T; break;
-    case 'N': kind = TokenType_::N; break;
+    case 'N': kind = Token::N; break;
+    case 'O': kind = Token::O; break;
 
-    case 'X': kind = TokenType_::X; break;
-    case 'Y': kind = TokenType_::Y; break;
-    case 'Z': kind = TokenType_::Z; break;
-    case 'R': kind = TokenType_::R; break;
-    case 'F': kind = TokenType_::F; break;
-    case 'O': kind = TokenType_::O; break;
-    case 'S': kind = TokenType_::S; break;
-    case 'H': kind = TokenType_::H; break;
-    case 'P': kind = TokenType_::P; break;
-    case 'I': kind = TokenType_::I; break;
-    case 'J': kind = TokenType_::J; break;
-    case 'E': kind = TokenType_::E; break;
+    case 'G': kind = Token::G; break;
 
-    default: kind = TokenType_::Unknown;
+    case 'X': kind = Token::X; break;
+    case 'Y': kind = Token::Y; break;
+    case 'Z': kind = Token::Z; break;
+    case 'U': kind = Token::U; break;
+    case 'V': kind = Token::V; break;
+    case 'W': kind = Token::W; break;
+    case 'P': kind = Token::P; break;
+    case 'Q': kind = Token::Q; break;
+    case 'R': kind = Token::R; break;
+    case 'A': kind = Token::A; break;
+    case 'B': kind = Token::B; break;
+    case 'C': kind = Token::C; break;
+
+    case 'I': kind = Token::I; break;
+    case 'J': kind = Token::J; break;
+    case 'K': kind = Token::K; break;
+
+    case 'E': kind = Token::E; break;
+    case 'F': kind = Token::F; break;
+
+    case 'S': kind = Token::S; break;
+
+    case 'D': kind = Token::D; break;
+    case 'T': kind = Token::T; break;
+
+    case 'M': kind = Token::M; break;
+
+    default: kind = Token::Unknown;
     }
 
-    return Token {
+    return Token::Token {
         pos_-1,
         1,
         kind,
     };
 }
 
-Token Lexer::tokenize_comment_(bool untilEol/* = false*/)
+Token::Token Lexer::tokenize_comment_()
 {
     bool done;
     unsigned start = pos_ - 1;
-    wchar_t stop = untilEol ? '\n' : ')';
 
     while (pos_ < text_length_) {
-        done = text_[pos_] == stop;
+        if (text_[pos_] == ':' ||
+            text_[pos_] == '%') {
+            throw LexerException(
+                std::string("Illegal char in comment: ") + std::to_string(text_[pos_]), pos_, 1);
+        }
+        done = text_[pos_] == ')';
         ++pos_;
         if (done) break;
     }
 
-    return Token {
+    return Token::Token {
         start,
         pos_-start,
-        TokenType_::Comment,
+        Token::Comment,
     };
 }
 
-Token Lexer::tokenize_number_()
+Token::Token Lexer::tokenize_number_()
 {
-    //auto kind = TokenType_::Integer;
+    //auto kind = Token::Integer;
     unsigned start = pos_ - 1;
 
     scan_integer_();
-    if (pos_ < text_length_ && text_[pos_] == '.') {
+    if (pos_ < text_length_ && text_[pos_] == '.' &&
+            /* leading dot means we can't have another */
+            text_[start] != '.') {
         ++pos_;
         if (pos_ < text_length_ && iswdigit(text_[pos_])) {
             scan_integer_();
         }
-        //kind = TokenType_::Decimal;
+        //kind = Token::Decimal;
     }
 
-    return Token {
+    return Token::Token {
         start,
         pos_-start,
-        TokenType_::Number,
+        Token::Number,
     };
 }
