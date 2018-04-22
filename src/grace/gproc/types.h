@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cmath>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -12,6 +13,8 @@
 #include <vector>
 
 #include <wx/string.h>
+
+constexpr float PI_F = 3.14159265358979f;
 
 namespace Token {
     enum Type {
@@ -125,9 +128,19 @@ inline std::ostream& operator<<(std::ostream& stream,
 
 /* */
 
-class Word {
+class Visitor;
+
+class BaseNode {
+public:
+    virtual void accept(class Visitor*) = 0;
+};
+
+/* */
+
+class Word : public BaseNode {
 public:
     Word(Token::Type kind, float value) : kind(kind), value{value} {}
+    void accept(Visitor* v);
     bool operator==(const Word& rhs) const {
         return (kind == rhs.kind) &&
                (value == rhs.value);
@@ -166,30 +179,84 @@ namespace std
 using TokenSet = std::unordered_set<Token::Type>;
 using WordSet = std::unordered_set<Word>;
 
-class Header {
+class Header : public BaseNode {
 public:
     Header() { }
+    void accept(Visitor* v);
     std::optional<std::variant<unsigned, std::wstring>> identifier;
 };
 
-class BlockNumber {
+class BlockNumber : public BaseNode {
 public:
     BlockNumber(unsigned value) : value{value} { }
+    void accept(Visitor* v);
     unsigned value;
 };
 
-class Block {
+class Block : public BaseNode {
 public:
     Block() { }
+    void accept(Visitor* v);
     std::optional<BlockNumber> number;
     std::vector<Word> data_words;
 };
 
-class Program {
+class Program : public BaseNode {
 public:
     Program() { }
+    void accept(Visitor* v);
     Header header;
     std::vector<Block> blocks;
+};
+
+/* */
+
+class Visitor {
+public:
+    virtual void visit(Word* w);
+    virtual void visit(Header* h);
+    virtual void visit(BlockNumber* bn);
+    virtual void visit(Block* b);
+    virtual void visit(Program* p);
+};
+
+class SpeedVisitor : public Visitor {
+public:
+    struct RefData {
+        float cuttingSpeedLo;
+        float cuttingSpeedHi;
+        float toolDiameter;
+    };
+    struct SpeedRecord {
+        unsigned line;
+        float value;
+        float calculatedValueLo;
+        float calculatedValueHi;
+    };
+    //
+    SpeedVisitor(RefData data) : ref_data_(data) { }
+    void visit(Word* w);
+    std::vector<SpeedRecord> records() { return speed_records_; }
+private:
+    enum Units {
+        Metrics,
+        Imperial,
+    };
+    enum SpindleSpeed {
+        RevPerMinute,
+        ConstantSurfaceSpeed,
+    };
+    //
+    float calcSpindleSpeed(float cs);
+
+    std::vector<SpeedRecord> speed_records_;
+    // default G97
+    SpeedVisitor::SpindleSpeed speed_kind_ = SpeedVisitor::RevPerMinute;
+    // default G71
+    SpeedVisitor::Units units_ = SpeedVisitor::Metrics;
+    // TODO: G50
+
+    RefData ref_data_;
 };
 
 /* */

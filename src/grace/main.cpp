@@ -4,58 +4,13 @@
 
 #include <iostream>
 
-#include <wx/wx.h>
-
 #include <wx/aboutdlg.h>
-#include <wx/app.h>
 #include <wx/filename.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
 #include <wx/stc/stc.h>
 
-#include "editor.h"
-#include "property.h"
-
-
-class App : public wxApp
-{
-public:
-    App();
-    virtual bool OnInit();
-    //virtual int OnExit();
-};
-
-DECLARE_APP(App);
-
-class MainFrame : public wxFrame {
-    friend class App;
-public:
-    MainFrame(const wxString& title);
-    bool DoSave(bool forceSaveAs = false);
-    void OnClose(wxCloseEvent& event);
-    void OnNew(wxCommandEvent& WXUNUSED(event));
-    void OnOpen(wxCommandEvent& WXUNUSED(event));
-    void OnSave(wxCommandEvent& WXUNUSED(event));
-    void OnSaveAs(wxCommandEvent& WXUNUSED(event));
-    void OnStatusChanged(wxCommandEvent& event);
-    void OnExit(wxCommandEvent& WXUNUSED(event));
-    void OnAbout(wxCommandEvent& WXUNUSED(event));
-    bool QueryCanDiscard();
-    void UpdateTitle();
-
-private:
-    Editor* editor_;
-
-    property(wxString) {
-        wxString get() {
-            return value;
-        }
-        void set(MainFrame* self, wxString path) {
-            value = path;
-            self->UpdateTitle();
-        }
-    } path_;
-};
+#include "main.h"
 
 App::App()
 {
@@ -103,6 +58,11 @@ MainFrame::MainFrame(const wxString& title)
 
     CreateStatusBar();
 
+    auto sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(editor_, 1, wxEXPAND);
+    sizer->Add(new Sidebar(this), 0, wxEXPAND);
+    SetSizer(sizer);
+
     editor_->SetFocus();
 
     editor_->Bind(wxEVT_STC_SAVEPOINTLEFT, [=](wxCommandEvent&) { UpdateTitle(); });
@@ -111,6 +71,11 @@ MainFrame::MainFrame(const wxString& title)
 
     UpdateTitle();
     Centre();
+}
+
+MainFrame::~MainFrame()
+{
+    delete editor_;
 }
 
 void MainFrame::OnStatusChanged(wxCommandEvent& event)

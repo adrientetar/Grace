@@ -116,6 +116,8 @@ Token::Token Lexer::tokenize_alpha_()
 {
     Token::Type kind;
 
+    // TODO assign char values directly
+    // https://stackoverflow.com/a/17095716
     switch (text_[pos_-1])
     {
     case 'N': kind = Token::N; break;

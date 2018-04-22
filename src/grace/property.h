@@ -12,13 +12,13 @@ template <typename T>
 class Property
 {
 protected:
-	T value;
+    T value;
 public:
-	virtual T get() {
-		return value;
-	}
-	virtual void set(T new_value) {
-		value = new_value;
-	}
+    virtual T get() {
+        return value;
+    }
+    virtual void set(T new_value) {
+        value = new_value;
+    }
 };
 
